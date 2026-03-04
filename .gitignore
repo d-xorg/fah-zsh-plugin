@@ -1,0 +1,18 @@
+# Ignore generated sound files (users should generate their own)
+assets/*
+!assets/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
