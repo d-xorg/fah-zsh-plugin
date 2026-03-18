@@ -33,6 +33,7 @@ Perfect for:
 - ✅ **Cross-platform**: Works on macOS and Linux
 - ✅ **One-command setup**: Download sound with `fah-init`
 - ✅ **Smart detection**: Only plays on actual failures (not empty prompts)
+- ✅ **Watch list**: Scope which commands trigger sound (`FAH_WATCH_COMMANDS` + `fah-watch`)
 - ✅ **Rate limiting**: Anti-spam protection (configurable)
 - ✅ **Configurable**: Volume, sound file, enable/disable
 - ✅ **Safe**: Won't break shell startup even if audio tools are missing
@@ -72,13 +73,26 @@ fah-init
 
 This will download the legendary "FAHHHHH" sound and set everything up automatically!
 
-5. **Test it:**
+5. **Configure the watch list** — tell FAH which commands should trigger sound:
+
+```bash
+# Trigger on ALL failed commands (simplest setup)
+fah-watch add "*"
+
+# Or scope it to specific commands
+fah-watch add "npm run*"
+fah-watch add "make*"
+```
+
+> **Why is this required?** The watch list is empty by default — no sound plays until you add at least one pattern. This gives you full control from the start. See [Watch List](#-command-watch-list) for details.
+
+6. **Test it:**
 
 ```bash
 fah-test
 ```
 
-That's it! Now try running a failing command:
+That's it! Now try running a failing command (with `"*"` in the watch list):
 
 ```bash
 false        # You should hear: FAHHHHHH! 🔊
@@ -165,7 +179,32 @@ FAH Plugin Status:
   Sound file: /path/to/plugins/fah/assets/fah.mp3
   Min interval: 800ms
   Volume: default
+  Watch list:
+    1) npm run*
+    2) make*
 ```
+
+### `fah-watch`
+Manages the watch list — the set of glob patterns that control which commands can trigger the sound.
+
+```bash
+fah-watch list              # Show current patterns (default when no subcommand given)
+fah-watch add "npm run*"    # Add a pattern
+fah-watch add "make*"       # Add another pattern
+fah-watch remove "make*"    # Remove a pattern
+fah-watch clear             # Remove all patterns (silence everything)
+```
+
+**Subcommands:**
+
+| Subcommand | Description |
+|---|---|
+| `list` | Show numbered watch list (or empty notice) |
+| `add <pattern>` | Append a glob pattern; skips silently if duplicate |
+| `remove <pattern>` | Remove exact-match pattern; warns if not found |
+| `clear` | Empty the watch list — no commands will trigger sound |
+
+> **Note:** Changes made with `fah-watch` are session-scoped. To persist them, add `FAH_WATCH_COMMANDS=("pattern1" "pattern2")` to your `~/.zshrc`.
 
 ---
 
@@ -179,6 +218,7 @@ export FAH_ENABLED=1                        # Enable/disable (1=on, 0=off)
 export FAH_SOUND_FILE="$HOME/my-sound.mp3"  # Custom sound file path
 export FAH_MIN_INTERVAL_MS=1000             # Min time between sounds (ms)
 export FAH_VOLUME=0.5                       # Volume (0.0-1.0 for macOS)
+FAH_WATCH_COMMANDS=("npm run*" "make*")     # Only these commands trigger sound
 
 # Load oh-my-zsh
 plugins=(git fah ...)
@@ -193,6 +233,7 @@ source $ZSH/oh-my-zsh.sh
 | `FAH_SOUND_FILE` | Auto-detected | Path to custom sound file |
 | `FAH_MIN_INTERVAL_MS` | `800` | Minimum milliseconds between sounds (anti-spam) |
 | `FAH_VOLUME` | System default | Volume level (0.0-1.0 for macOS, 0-65536 for Linux) |
+| `FAH_WATCH_COMMANDS` | `()` (empty) | Array of glob patterns — only matching commands trigger sound |
 
 ---
 
@@ -263,21 +304,55 @@ If no custom sound is found, FAH automatically falls back to:
 
 ## 💈 Usage Examples
 
+> **Note:** The examples below assume `fah-watch add "*"` has been run (or `FAH_WATCH_COMMANDS=("*")` is set in `~/.zshrc`). Without any watch list patterns, no sound will play.
+
 ```bash
-# Should play FAHHHHHH! 🔊
+# Should play FAHHHHHH! 🔊 (watch list contains "*")
 false
 ls /nonexistent
 grep "pattern" /file/that/doesnt/exist
 npm test  # when tests fail
 git push  # when push is rejected
 
-# Should NOT play sound
+# Should NOT play sound (exit 0)
 true
 echo "Hello World"
 ls /tmp
 git status
 
 # Just pressing Enter (no command) - no sound
+
+# Should NOT play sound (command not in watch list)
+# e.g. if watch list only contains "npm run*"
+false           # no match → silent
+npm run test    # match → sound plays on failure
+```
+
+### Watch List Examples
+
+```bash
+# Only play sound when npm or make commands fail
+fah-watch add "npm run*"
+fah-watch add "make*"
+
+# Play sound for all failed commands (restore old behavior)
+fah-watch add "*"
+
+# Only play on specific exact commands
+fah-watch add "npm run test"
+fah-watch add "npm run lint"
+
+# Inspect the current list
+fah-watch list
+# FAH Watch List:
+#   1) npm run*
+#   2) make*
+
+# Remove a pattern
+fah-watch remove "make*"
+
+# Silence everything
+fah-watch clear
 ```
 
 ### Rate Limiting
@@ -364,7 +439,13 @@ FAH is built with production-quality Zsh scripting:
    - Ignores completion menus
    - Only triggers on non-zero exit codes
 
-3. **Rate Limiting**: Prevents spam
+3. **Watch List Filtering**: Scopes which commands trigger sound
+   - `FAH_WATCH_COMMANDS` holds glob patterns (e.g. `"npm run*"`)
+   - Matched using zsh's native glob — no external tools, no regex backtracking
+   - Empty list = completely silent; `"*"` = all failures trigger sound
+   - Manageable via `fah-watch` commands at runtime or set in `~/.zshrc`
+
+4. **Rate Limiting**: Prevents spam
    - Tracks last play time using `EPOCHREALTIME` (zsh 5.1+)
    - Configurable minimum interval (default: 800ms)
 
@@ -377,6 +458,32 @@ FAH is built with production-quality Zsh scripting:
    ```
    Custom file → Downloaded sound → System sounds → Terminal beep
    ```
+
+---
+
+## 🔄 Migration Guide
+
+> ⚠️ **Breaking change — v1.0.0 → v1.1.0**
+
+As of **v1.1.0**, **the sound no longer plays for all failing commands by default**. The watch list (`FAH_WATCH_COMMANDS`) is empty by default, which means no sound will play until you configure it.
+
+**To restore the previous behavior** (play on every failed command), add this to your `~/.zshrc` before the plugins are loaded:
+
+```bash
+FAH_WATCH_COMMANDS=("*")
+```
+
+**To watch only specific commands** (new feature):
+
+```bash
+FAH_WATCH_COMMANDS=("npm run*" "make*" "cargo*")
+```
+
+Or add them interactively at any time:
+
+```bash
+fah-watch add "npm run*"
+```
 
 ---
 
