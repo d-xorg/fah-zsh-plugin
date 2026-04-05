@@ -1,5 +1,50 @@
 # Release Notes
 
+## v1.2.0 - Success Sound 🎉
+
+**Release Date:** March 19, 2026
+
+### ✨ New Features
+
+#### Success Sound
+- **Audio feedback on success**: FAH now plays a sound when a watched command exits with code `0`
+- **Default sound**: "Mission Success" (GTA) — downloaded automatically by `fah-init`
+- **Same watch list**: `FAH_WATCH_COMMANDS` controls both fail and success triggers
+- **Independent toggle**: `FAH_SUCCESS_ENABLED` (default `1`) — disable success sound without affecting fail sound
+- **Custom sound support**: Point `FAH_SUCCESS_SOUND_FILE` to any audio file
+- **Fallback**: Double terminal bell when no audio file is present (distinct from the single-bell fail fallback)
+
+#### `fah-init` Downloads Both Sounds
+- Now downloads `assets/fah.mp3` (fail) **and** `assets/success.mp3` (success) in one command
+- Skips any file already installed — safe to re-run
+- Re-detects both sound files immediately after download
+
+#### `fah-test` Two-Step Test
+- Tests both sounds in labeled steps: `[1/2] Fail sound` / `[2/2] Success sound`
+- Reports the file path played for each step
+- Shows a helpful hint if a sound file is missing or the feature is disabled
+
+#### `fah-status` Shows Success Sound State
+- New `Success sound: enabled/disabled` line
+- New `Success sound file: <path or fallback>` line
+
+### ⚙️ New Configuration Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FAH_SUCCESS_ENABLED` | `1` | Enable (`1`) or disable (`0`) the success sound |
+| `FAH_SUCCESS_SOUND_FILE` | Auto-detected | Path to custom success sound file |
+
+```zsh
+# Disable success sound (keep fail sound active)
+export FAH_SUCCESS_ENABLED=0
+
+# Use a custom success sound
+export FAH_SUCCESS_SOUND_FILE="$HOME/.sounds/tadaa.mp3"
+```
+
+---
+
 ## v1.1.0 - Command Watch List 🎯
 
 **Release Date:** March 18, 2026

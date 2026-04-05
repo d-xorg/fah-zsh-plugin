@@ -11,7 +11,8 @@
 ```
 
 > 🎌 **The meme "FAHHHHH" now in your terminal!**  
-> When your commands fail, you'll know it. Instantly. Audibly. Memorably.
+> When your commands fail, you'll know it. Instantly. Audibly. Memorably.  
+> When they succeed, now you'll know that too. 🎉
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue.svg)](https://github.com/d-xorg/fah-zsh-plugin)
@@ -31,11 +32,13 @@ Perfect for:
 ### ✨ Features
 
 - ✅ **Cross-platform**: Works on macOS and Linux
-- ✅ **One-command setup**: Download sound with `fah-init`
-- ✅ **Smart detection**: Only plays on actual failures (not empty prompts)
+- ✅ **One-command setup**: Download both sounds with `fah-init`
+- ✅ **Fail sound**: Plays the legendary "FAHHHHH" on command failure
+- ✅ **Success sound**: Plays "Mission Success" on command success 🎉
+- ✅ **Smart detection**: Only plays on actual command results (not empty prompts)
 - ✅ **Watch list**: Scope which commands trigger sound (`FAH_WATCH_COMMANDS` + `fah-watch`)
 - ✅ **Rate limiting**: Anti-spam protection (configurable)
-- ✅ **Configurable**: Volume, sound file, enable/disable
+- ✅ **Configurable**: Volume, sound files, enable/disable per sound type
 - ✅ **Safe**: Won't break shell startup even if audio tools are missing
 - ✅ **Multiple fallbacks**: Custom sound → System sounds → Terminal beep
 
@@ -65,13 +68,13 @@ omz reload
 source ~/.zshrc
 ```
 
-4. **Download the sound** (one-time setup):
+4. **Download the sounds** (one-time setup):
 
 ```bash
 fah-init
 ```
 
-This will download the legendary "FAHHHHH" sound and set everything up automatically!
+This will download both the legendary "FAHHHHH" fail sound and the "Mission Success" success sound.
 
 5. **Configure the watch list** — tell FAH which commands should trigger sound:
 
@@ -92,10 +95,11 @@ fah-watch add "make*"
 fah-test
 ```
 
-That's it! Now try running a failing command (with `"*"` in the watch list):
+That's it! Now try it (with `"*"` in the watch list):
 
 ```bash
-false        # You should hear: FAHHHHHH! 🔊
+false   # You should hear: FAHHHHHH! 🔊
+true    # You should hear: Mission Success! 🎉
 ```
 
 ---
@@ -105,7 +109,7 @@ false        # You should hear: FAHHHHHH! 🔊
 FAH provides several commands to control your audio experience:
 
 ### `fah-init`
-Downloads and installs the default "FAHHHHH" sound file.
+Downloads and installs both default sound files (fail + success).
 
 ```bash
 fah-init
@@ -113,32 +117,52 @@ fah-init
 
 **What it does:**
 - Creates the `assets/` directory if needed
-- Downloads the sound from the internet
-- Sets up everything automatically
+- Downloads the **fail sound** (`fah.mp3` — "FAHHHHH")
+- Downloads the **success sound** (`success.mp3` — "Mission Success")
+- Skips any file that is already installed
 - Tells you to reload your shell
 
 **Output:**
 ```
-Downloading FAH sound file...
+Downloading FAH sound files...
+
+  Downloading fail sound (fah.mp3)...
+  Downloading success sound (mission-success.mp3)...
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✓ FAH sound installed successfully.
+✓ Fail sound installed:    .../assets/fah.mp3
+✓ Success sound installed: .../assets/success.mp3
 
-To ensure the plugin picks up the new sound file run:
+To ensure the plugin picks up the new sound files run:
 
     omz reload
 
 or restart your terminal.
 
-Then test it with: fah-test
+Then test with: fah-test
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ### `fah-test`
-Manually plays the sound to test if everything is working.
+Plays both sounds in sequence to verify everything is working.
 
 ```bash
 fah-test
+```
+
+**Output:**
+```
+Testing FAH plugin...
+
+[1/2] Fail sound:
+  Playing: .../assets/fah.mp3
+  ✓ done
+
+[2/2] Success sound:
+  Playing: .../assets/success.mp3
+  ✓ done
+
+✓ FAH test completed.
 ```
 
 ### `fah-on`
@@ -174,11 +198,13 @@ fah-status
 **Output:**
 ```
 FAH Plugin Status:
-  Enabled: yes
-  Player: afplay
-  Sound file: /path/to/plugins/fah/assets/fah.mp3
-  Min interval: 800ms
-  Volume: default
+  Enabled:              yes
+  Player:               afplay
+  Fail sound file:      /path/to/plugins/fah/assets/fah.mp3
+  Success sound:        enabled
+  Success sound file:   /path/to/plugins/fah/assets/success.mp3
+  Min interval:         800ms
+  Volume:               default
   Watch list:
     1) npm run*
     2) make*
@@ -214,11 +240,13 @@ You can customize FAH by setting environment variables in your `~/.zshrc` **befo
 
 ```bash
 # FAH Configuration (add BEFORE plugins load)
-export FAH_ENABLED=1                        # Enable/disable (1=on, 0=off)
-export FAH_SOUND_FILE="$HOME/my-sound.mp3"  # Custom sound file path
-export FAH_MIN_INTERVAL_MS=1000             # Min time between sounds (ms)
-export FAH_VOLUME=0.5                       # Volume (0.0-1.0 for macOS)
-FAH_WATCH_COMMANDS=("npm run*" "make*")     # Only these commands trigger sound
+export FAH_ENABLED=1                              # Enable/disable (1=on, 0=off)
+export FAH_SOUND_FILE="$HOME/my-fail.mp3"         # Custom fail sound path
+export FAH_SUCCESS_ENABLED=1                      # Enable/disable success sound
+export FAH_SUCCESS_SOUND_FILE="$HOME/my-win.mp3"  # Custom success sound path
+export FAH_MIN_INTERVAL_MS=1000                   # Min time between sounds (ms)
+export FAH_VOLUME=0.5                             # Volume (0.0-1.0 for macOS)
+FAH_WATCH_COMMANDS=("npm run*" "make*")           # Only these commands trigger sound
 
 # Load oh-my-zsh
 plugins=(git fah ...)
@@ -229,8 +257,10 @@ source $ZSH/oh-my-zsh.sh
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FAH_ENABLED` | `1` | Enable (`1`) or disable (`0`) the plugin |
-| `FAH_SOUND_FILE` | Auto-detected | Path to custom sound file |
+| `FAH_ENABLED` | `1` | Enable (`1`) or disable (`0`) the entire plugin |
+| `FAH_SOUND_FILE` | Auto-detected | Path to custom fail sound file |
+| `FAH_SUCCESS_ENABLED` | `1` | Enable (`1`) or disable (`0`) the success sound |
+| `FAH_SUCCESS_SOUND_FILE` | Auto-detected | Path to custom success sound file |
 | `FAH_MIN_INTERVAL_MS` | `800` | Minimum milliseconds between sounds (anti-spam) |
 | `FAH_VOLUME` | System default | Volume level (0.0-1.0 for macOS, 0-65536 for Linux) |
 | `FAH_WATCH_COMMANDS` | `()` (empty) | Array of glob patterns — only matching commands trigger sound |
@@ -239,28 +269,33 @@ source $ZSH/oh-my-zsh.sh
 
 ## 🎵 Sound Files
 
-### Default Sound
+### Default Sounds
 
-The plugin uses the "FAHHHHH" sound from the internet. Run `fah-init` to download it:
+Run `fah-init` to download both default sounds:
 
 ```bash
 fah-init
 ```
 
-The sound is saved to: `assets/fah.mp3`
+| Sound | File | Source |
+|-------|------|--------|
+| Fail | `assets/fah.mp3` | "FAHHHHH" meme sfx |
+| Success | `assets/success.mp3` | "Mission Success" (GTA) |
 
 ### Custom Sounds
 
-Want to use your own sound? Easy!
+Want to use your own sounds? Easy!
 
-1. **Place your sound file anywhere:**
+1. **Place your sound files anywhere:**
    ```bash
-   cp my-epic-sound.wav ~/.sounds/
+   cp my-fail.wav ~/.sounds/
+   cp my-win.wav ~/.sounds/
    ```
 
-2. **Configure FAH to use it** (in `~/.zshrc`):
+2. **Configure FAH to use them** (in `~/.zshrc`):
    ```bash
-   export FAH_SOUND_FILE="$HOME/.sounds/my-epic-sound.wav"
+   export FAH_SOUND_FILE="$HOME/.sounds/my-fail.wav"
+   export FAH_SUCCESS_SOUND_FILE="$HOME/.sounds/my-win.wav"
    ```
 
 3. **Reload your shell:**
@@ -279,8 +314,12 @@ Want to use your own sound? Easy!
 
 If no custom sound is found, FAH automatically falls back to:
 
-1. **macOS**: System sounds (`/System/Library/Sounds/Basso.aiff`, etc.)
-2. **Any platform**: Terminal beep (`\a`)
+**Fail sound:**
+1. macOS system sounds (`/System/Library/Sounds/Basso.aiff`, etc.)
+2. Terminal bell (`\a`)
+
+**Success sound:**
+1. Terminal double-bell (`\a\a` — distinctly different from the fail beep)
 
 ---
 
@@ -307,14 +346,14 @@ If no custom sound is found, FAH automatically falls back to:
 > **Note:** The examples below assume `fah-watch add "*"` has been run (or `FAH_WATCH_COMMANDS=("*")` is set in `~/.zshrc`). Without any watch list patterns, no sound will play.
 
 ```bash
-# Should play FAHHHHHH! 🔊 (watch list contains "*")
+# Should play FAHHHHHH! 🔊 (watch list contains "*", command failed)
 false
 ls /nonexistent
 grep "pattern" /file/that/doesnt/exist
 npm test  # when tests fail
 git push  # when push is rejected
 
-# Should NOT play sound (exit 0)
+# Should play Mission Success! 🎉 (watch list contains "*", command succeeded)
 true
 echo "Hello World"
 ls /tmp
@@ -325,7 +364,7 @@ git status
 # Should NOT play sound (command not in watch list)
 # e.g. if watch list only contains "npm run*"
 false           # no match → silent
-npm run test    # match → sound plays on failure
+npm run test    # match → fail sound on failure, success sound on pass
 ```
 
 ### Watch List Examples
@@ -434,10 +473,11 @@ FAH is built with production-quality Zsh scripting:
    - `preexec`: Marks that a command is about to run
    - `precmd`: Checks the exit code after command finishes
 
-2. **Smart Detection**: Only plays on actual failures
+2. **Smart Detection**: Plays on actual command results
    - Ignores empty prompts (just pressing Enter)
    - Ignores completion menus
-   - Only triggers on non-zero exit codes
+   - Non-zero exit code → fail sound
+   - Zero exit code → success sound
 
 3. **Watch List Filtering**: Scopes which commands trigger sound
    - `FAH_WATCH_COMMANDS` holds glob patterns (e.g. `"npm run*"`)
@@ -456,7 +496,8 @@ FAH is built with production-quality Zsh scripting:
 
 5. **Fallback Chain**:
    ```
-   Custom file → Downloaded sound → System sounds → Terminal beep
+   Fail:    Custom file → Downloaded fah.mp3 → System sounds → Terminal bell
+   Success: Custom file → Downloaded success.mp3 → Terminal double-bell
    ```
 
 ---

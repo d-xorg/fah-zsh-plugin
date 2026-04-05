@@ -32,6 +32,17 @@ typeset -g FAH_VOLUME="${FAH_VOLUME:-}"
 # Use "*" to match all commands (restores pre-watch-list behavior)
 typeset -ga FAH_WATCH_COMMANDS
 
+# Ignore list: array of glob patterns — matching commands are excluded from triggering sound
+# Takes precedence over FAH_WATCH_COMMANDS
+# Example: FAH_IGNORE_COMMANDS=("npm install*" "npm run dev" "npm run start")
+typeset -ga FAH_IGNORE_COMMANDS
+
+# Enable/disable success sound (1=enabled, 0=disabled)
+typeset -g FAH_SUCCESS_ENABLED="${FAH_SUCCESS_ENABLED:-1}"
+
+# Path to success sound file (auto-detected if not set)
+typeset -g FAH_SUCCESS_SOUND_FILE="${FAH_SUCCESS_SOUND_FILE:-}"
+
 # ==============================================================================
 # Internal State Variables
 # ==============================================================================
@@ -127,6 +138,31 @@ _fah_detect_sound_file() {
     return 1
 }
 
+_fah_detect_success_sound_file() {
+    # If user provided a custom success sound file, use it
+    if [[ -n "$FAH_SUCCESS_SOUND_FILE" ]] && [[ -f "$FAH_SUCCESS_SOUND_FILE" ]]; then
+        return 0
+    fi
+
+    # Try bundled success sound file in plugin assets directory
+    local candidates=(
+        "$_FAH_PLUGIN_DIR/assets/success.mp3"
+        "$_FAH_PLUGIN_DIR/assets/success.wav"
+        "$_FAH_PLUGIN_DIR/assets/success.aiff"
+    )
+
+    for candidate in "${candidates[@]}"; do
+        if [[ -f "$candidate" ]]; then
+            FAH_SUCCESS_SOUND_FILE="$candidate"
+            return 0
+        fi
+    done
+
+    # No success sound file found; will use fallback beep
+    FAH_SUCCESS_SOUND_FILE=""
+    return 1
+}
+
 # ==============================================================================
 # Fallback Beep (when no audio file is available)
 # ==============================================================================
@@ -141,6 +177,17 @@ _fah_play_fallback_beep() {
     else
         # ASCII bell character
         print -n '\a'
+    fi
+}
+
+_fah_play_fallback_success_beep() {
+    # Two quick bells to distinguish success from the single-bell fail fallback
+    if command -v tput &>/dev/null; then
+        tput bel 2>/dev/null
+        sleep 0.12 2>/dev/null
+        tput bel 2>/dev/null
+    else
+        print -n '\a\a'
     fi
 }
 
@@ -235,6 +282,62 @@ _fah_play_sound() {
 }
 
 # ==============================================================================
+# Play Success Sound
+# ==============================================================================
+
+_fah_play_success_sound() {
+    # Don't play if disabled
+    [[ "$FAH_ENABLED" -eq 1 ]] || return 0
+    [[ "$FAH_SUCCESS_ENABLED" -eq 1 ]] || return 0
+
+    # Rate limiting
+    _fah_should_play || return 0
+
+    # If no player detected, try fallback beep
+    if [[ -z "$_FAH_PLAYER" ]]; then
+        _fah_play_fallback_success_beep
+        return 0
+    fi
+
+    # If no success sound file, try fallback beep
+    if [[ -z "$FAH_SUCCESS_SOUND_FILE" ]] || [[ ! -f "$FAH_SUCCESS_SOUND_FILE" ]]; then
+        _fah_play_fallback_success_beep
+        return 0
+    fi
+
+    # Play sound based on detected player
+    case "$_FAH_PLAYER" in
+        afplay)
+            if [[ -n "$FAH_VOLUME" ]]; then
+                afplay -v "$FAH_VOLUME" "$FAH_SUCCESS_SOUND_FILE" &>/dev/null &!
+            else
+                afplay "$FAH_SUCCESS_SOUND_FILE" &>/dev/null &!
+            fi
+            ;;
+        paplay)
+            if [[ -n "$FAH_VOLUME" ]]; then
+                local vol="$FAH_VOLUME"
+                if (( $(echo "$vol < 2" | bc -l 2>/dev/null || echo 1) )); then
+                    vol=$(( int(vol * 65536) ))
+                fi
+                paplay --volume="$vol" "$FAH_SUCCESS_SOUND_FILE" &>/dev/null &!
+            else
+                paplay "$FAH_SUCCESS_SOUND_FILE" &>/dev/null &!
+            fi
+            ;;
+        aplay)
+            aplay -q "$FAH_SUCCESS_SOUND_FILE" &>/dev/null &!
+            ;;
+        ffplay)
+            ffplay -nodisp -autoexit -v quiet "$FAH_SUCCESS_SOUND_FILE" &>/dev/null &!
+            ;;
+        *)
+            _fah_play_fallback_success_beep
+            ;;
+    esac
+}
+
+# ==============================================================================
 # Watch List Matching
 # ==============================================================================
 
@@ -260,6 +363,23 @@ _fah_command_in_watchlist() {
     return 1
 }
 
+_fah_command_in_ignorelist() {
+    # Check if the given command string matches any pattern in FAH_IGNORE_COMMANDS
+    # Returns 0 (true) if matched (should be ignored), 1 (false) otherwise
+
+    local cmd="$1"
+
+    # Empty ignore list — nothing is excluded
+    (( ${#FAH_IGNORE_COMMANDS[@]} == 0 )) && return 1
+
+    local pattern
+    for pattern in "${FAH_IGNORE_COMMANDS[@]}"; do
+        [[ "$cmd" == ${~pattern} ]] && return 0
+    done
+
+    return 1
+}
+
 # ==============================================================================
 # Precmd Hook - Triggered before each prompt
 # ==============================================================================
@@ -269,14 +389,19 @@ _fah_precmd() {
     
     # Only trigger if:
     # 1. A command was actually executed (not just Enter key)
-    # 2. The exit code is non-zero (command failed)
-    # 3. Not during completion (check if we're not in ZLE widget context)
+    # 2. Not during completion (check if we're not in ZLE widget context)
     
-    if [[ "$_FAH_COMMAND_EXECUTED" -eq 1 ]] && [[ $exit_code -ne 0 ]]; then
+    if [[ "$_FAH_COMMAND_EXECUTED" -eq 1 ]]; then
         # Avoid playing during completion menus (heuristic check)
         # CONTEXT is set during completion; WIDGET contains widget name during ZLE
         if [[ -z "$CONTEXT" ]] && [[ -z "$WIDGET" ]]; then
-            _fah_command_in_watchlist "$_FAH_LAST_COMMAND" && _fah_play_sound
+            if ! _fah_command_in_ignorelist "$_FAH_LAST_COMMAND"; then
+                if [[ $exit_code -ne 0 ]]; then
+                    _fah_command_in_watchlist "$_FAH_LAST_COMMAND" && _fah_play_sound
+                elif [[ $exit_code -eq 0 ]]; then
+                    _fah_command_in_watchlist "$_FAH_LAST_COMMAND" && _fah_play_success_sound
+                fi
+            fi
         fi
     fi
 
@@ -320,11 +445,13 @@ fah-toggle() {
 
 fah-status() {
     echo "FAH Plugin Status:"
-    echo "  Enabled: $([ "$FAH_ENABLED" -eq 1 ] && echo "yes" || echo "no")"
-    echo "  Player: ${_FAH_PLAYER:-none (fallback beep)}"
-    echo "  Sound file: ${FAH_SOUND_FILE:-none (fallback beep)}"
-    echo "  Min interval: ${FAH_MIN_INTERVAL_MS}ms"
-    echo "  Volume: ${FAH_VOLUME:-default}"
+    echo "  Enabled:              $([ "$FAH_ENABLED" -eq 1 ] && echo "yes" || echo "no")"
+    echo "  Player:               ${_FAH_PLAYER:-none (fallback beep)}"
+    echo "  Fail sound file:      ${FAH_SOUND_FILE:-none (fallback beep)}"
+    echo "  Success sound:        $([ "$FAH_SUCCESS_ENABLED" -eq 1 ] && echo "enabled" || echo "disabled")"
+    echo "  Success sound file:   ${FAH_SUCCESS_SOUND_FILE:-none (fallback double-beep)}"
+    echo "  Min interval:         ${FAH_MIN_INTERVAL_MS}ms"
+    echo "  Volume:               ${FAH_VOLUME:-default}"
     echo "  Watch list:"
     if (( ${#FAH_WATCH_COMMANDS[@]} == 0 )); then
         echo "    (empty — no commands trigger sound)"
@@ -332,6 +459,17 @@ fah-status() {
         local i=1
         local pattern
         for pattern in "${FAH_WATCH_COMMANDS[@]}"; do
+            echo "    $i) $pattern"
+            (( i++ ))
+        done
+    fi
+    echo "  Ignore list:"
+    if (( ${#FAH_IGNORE_COMMANDS[@]} == 0 )); then
+        echo "    (empty — no commands are excluded)"
+    else
+        local i=1
+        local pattern
+        for pattern in "${FAH_IGNORE_COMMANDS[@]}"; do
             echo "    $i) $pattern"
             (( i++ ))
         done
@@ -415,21 +553,85 @@ fah-watch() {
     esac
 }
 
+fah-ignore() {
+    local subcmd="${1:-list}"
+
+    case "$subcmd" in
+        list)
+            echo "FAH Ignore List:"
+            if (( ${#FAH_IGNORE_COMMANDS[@]} == 0 )); then
+                echo "  (empty — no commands are excluded)"
+                echo ""
+                echo "Add patterns with: fah-ignore add <pattern>"
+                echo "Example:           fah-ignore add \"npm install*\""
+            else
+                local i=1
+                local pattern
+                for pattern in "${FAH_IGNORE_COMMANDS[@]}"; do
+                    echo "  $i) $pattern"
+                    (( i++ ))
+                done
+            fi
+            ;;
+        add)
+            if [[ -z "$2" ]]; then
+                echo "Usage: fah-ignore add <glob-pattern>" >&2
+                echo "Example: fah-ignore add \"npm install*\"" >&2
+                return 1
+            fi
+            local new_pattern="$2"
+            local pattern
+            for pattern in "${FAH_IGNORE_COMMANDS[@]}"; do
+                if [[ "$pattern" == "$new_pattern" ]]; then
+                    echo "⚠  Pattern already in ignore list: $new_pattern"
+                    return 0
+                fi
+            done
+            FAH_IGNORE_COMMANDS+=("$new_pattern")
+            echo "✓ Added to ignore list: $new_pattern"
+            ;;
+        remove)
+            if [[ -z "$2" ]]; then
+                echo "Usage: fah-ignore remove <glob-pattern>" >&2
+                return 1
+            fi
+            local target="$2"
+            local new_list=()
+            local found=0
+            local pattern
+            for pattern in "${FAH_IGNORE_COMMANDS[@]}"; do
+                if [[ "$pattern" == "$target" ]]; then
+                    found=1
+                else
+                    new_list+=("$pattern")
+                fi
+            done
+            if (( found )); then
+                FAH_IGNORE_COMMANDS=("${new_list[@]}")
+                echo "✓ Removed from ignore list: $target"
+            else
+                echo "⚠  Pattern not found in ignore list: $target" >&2
+                return 1
+            fi
+            ;;
+        clear)
+            FAH_IGNORE_COMMANDS=()
+            echo "✓ Ignore list cleared — no commands are excluded"
+            ;;
+        *)
+            echo "Usage: fah-ignore <list|add|remove|clear>" >&2
+            echo "  list             List current ignore patterns" >&2
+            echo "  add <pattern>    Add a glob pattern (e.g. \"npm install*\")" >&2
+            echo "  remove <pattern> Remove a pattern" >&2
+            echo "  clear            Remove all patterns" >&2
+            return 1
+            ;;
+    esac
+}
+
 fah-test() {
     echo "Testing FAH plugin..."
-    
-    # Check if we have a sound file
-    if [[ -z "$FAH_SOUND_FILE" ]] || [[ ! -f "$FAH_SOUND_FILE" ]]; then
-        echo ""
-        echo "⚠️  Could not play sound yet."
-        echo "   No sound file detected."
-        echo ""
-        echo "Run 'fah-init' to download the sound file, then:"
-        echo "   omz reload"
-        echo ""
-        return 1
-    fi
-    
+
     # Check if we have a player
     if [[ -z "$_FAH_PLAYER" ]]; then
         echo ""
@@ -438,29 +640,57 @@ fah-test() {
         echo ""
         return 1
     fi
-    
-    echo "Playing sound..."
-    _fah_play_sound
-    
+
+    # --- Fail sound ---
+    echo ""
+    echo "[1/2] Fail sound:"
+    if [[ -z "$FAH_SOUND_FILE" ]] || [[ ! -f "$FAH_SOUND_FILE" ]]; then
+        echo "  ⚠️  No fail sound file detected — run 'fah-init' then omz reload"
+    else
+        echo "  Playing: $FAH_SOUND_FILE"
+        _fah_play_sound
+        echo "  ✓ done"
+    fi
+
+    # --- Success sound ---
+    echo ""
+    echo "[2/2] Success sound:"
+    if [[ "$FAH_SUCCESS_ENABLED" -ne 1 ]]; then
+        echo "  (disabled — set FAH_SUCCESS_ENABLED=1 to enable)"
+    elif [[ -z "$FAH_SUCCESS_SOUND_FILE" ]] || [[ ! -f "$FAH_SUCCESS_SOUND_FILE" ]]; then
+        echo "  ⚠️  No success sound file detected — run 'fah-init' then omz reload"
+        echo "  Playing fallback double-beep instead..."
+        _fah_play_fallback_success_beep
+    else
+        echo "  Playing: $FAH_SUCCESS_SOUND_FILE"
+        _fah_play_success_sound
+        echo "  ✓ done"
+    fi
+
+    echo ""
     echo "✓ FAH test completed."
 }
 
 fah-init() {
-    # Download and install the default FAH sound file
-    # This command creates the assets directory and downloads the sound
-    
+    # Download and install the default FAH sound files (fail + success)
+    # This command creates the assets directory and downloads the sounds
+
     local assets_dir="${_FAH_PLUGIN_DIR}/assets"
     local sound_file="${assets_dir}/fah.mp3"
     local sound_url="https://www.myinstants.com/media/sounds/actually-good-fahhhh-sfx.mp3"
-    
-    # Check if sound file already exists
-    if [[ -f "$sound_file" ]]; then
-        echo "✓ FAH sound already installed at: $sound_file"
+    local success_file="${assets_dir}/success.mp3"
+    local success_url="https://www.myinstants.com/media/sounds/mission-success.mp3"
+
+    # Check if both sound files already exist
+    if [[ -f "$sound_file" ]] && [[ -f "$success_file" ]]; then
+        echo "✓ FAH sounds already installed:"
+        echo "  Fail:    $sound_file"
+        echo "  Success: $success_file"
         echo ""
-        echo "Run 'fah-test' to verify it works."
+        echo "Run 'fah-test' to verify they work."
         return 0
     fi
-    
+
     # Create assets directory if it doesn't exist
     if [[ ! -d "$assets_dir" ]]; then
         echo "Creating assets directory..."
@@ -469,7 +699,7 @@ fah-init() {
             return 1
         }
     fi
-    
+
     # Check for download tools
     local downloader=""
     if command -v curl &>/dev/null; then
@@ -478,57 +708,72 @@ fah-init() {
         downloader="wget"
     else
         echo "✗ Error: Neither curl nor wget is installed." >&2
-        echo "  Please install curl or wget to download the sound file." >&2
-        echo "  Alternatively, manually download from:" >&2
-        echo "  $sound_url" >&2
-        echo "  and save it as: $sound_file" >&2
+        echo "  Please install curl or wget to download the sound files." >&2
         return 1
     fi
-    
-    # Download the sound file
-    echo "Downloading FAH sound file..."
-    
-    local download_success=0
-    if [[ "$downloader" == "curl" ]]; then
-        # Use curl with follow redirects (-L)
-        if curl -fsSL -o "$sound_file" "$sound_url" 2>/dev/null; then
-            download_success=1
+
+    # Helper: download a single file, skip if already present
+    # Usage: _fah_init_download <label> <url> <dest>
+    # Returns 0 on success (or already present), 1 on failure
+    _fah_init_download() {
+        local label="$1" url="$2" dest="$3"
+        if [[ -f "$dest" ]]; then
+            echo "  (skipping $label — already installed)"
+            return 0
         fi
-    elif [[ "$downloader" == "wget" ]]; then
-        # Use wget with quiet mode
-        if wget -q -O "$sound_file" "$sound_url" 2>/dev/null; then
-            download_success=1
+        echo "  Downloading $label..."
+        local ok=0
+        if [[ "$downloader" == "curl" ]]; then
+            curl -fsSL -o "$dest" "$url" 2>/dev/null && ok=1
+        else
+            wget -q -O "$dest" "$url" 2>/dev/null && ok=1
         fi
-    fi
-    
-    # Check if download was successful
-    if [[ $download_success -eq 1 ]] && [[ -f "$sound_file" ]]; then
-        echo ""
+        if [[ $ok -eq 1 ]] && [[ -f "$dest" ]]; then
+            return 0
+        else
+            echo "  ✗ Failed to download $label" >&2
+            echo "    URL:    $url" >&2
+            echo "    Target: $dest" >&2
+            [[ -f "$dest" ]] && rm -f "$dest"
+            return 1
+        fi
+    }
+
+    echo "Downloading FAH sound files..."
+    echo ""
+
+    local fail_ok=0 success_ok=0
+
+    _fah_init_download "fail sound (fah.mp3)" "$sound_url" "$sound_file" && fail_ok=1
+    _fah_init_download "success sound (mission-success.mp3)" "$success_url" "$success_file" && success_ok=1
+
+    unfunction _fah_init_download 2>/dev/null
+
+    echo ""
+    if [[ $fail_ok -eq 1 ]] || [[ $success_ok -eq 1 ]]; then
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "✓ FAH sound installed successfully."
+        [[ $fail_ok -eq 1 ]]    && echo "✓ Fail sound installed:    $sound_file"
+        [[ $success_ok -eq 1 ]] && echo "✓ Success sound installed: $success_file"
         echo ""
-        echo "To ensure the plugin picks up the new sound file run:"
+        echo "To ensure the plugin picks up the new sound files run:"
         echo ""
         echo "    omz reload"
         echo ""
         echo "or restart your terminal."
         echo ""
-        echo "Then test it with: fah-test"
+        echo "Then test with: fah-test"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo ""
-        
-        # Re-detect sound file so it's immediately available
+
+        # Re-detect sound files so they're immediately available
         _fah_detect_sound_file
-        
+        _fah_detect_success_sound_file
+
+        # Return error only if BOTH downloads failed
+        [[ $fail_ok -eq 0 ]] && [[ $success_ok -eq 0 ]] && return 1
         return 0
     else
-        echo "✗ Error: Failed to download sound file." >&2
-        echo "  URL: $sound_url" >&2
-        echo "  Target: $sound_file" >&2
-        
-        # Clean up partial download
-        [[ -f "$sound_file" ]] && rm -f "$sound_file"
-        
+        echo "✗ Error: All downloads failed." >&2
         return 1
     fi
 }
@@ -540,8 +785,11 @@ fah-init() {
 # Detect audio player
 _fah_detect_player
 
-# Detect sound file
+# Detect fail sound file
 _fah_detect_sound_file
+
+# Detect success sound file
+_fah_detect_success_sound_file
 
 # Register hooks
 autoload -Uz add-zsh-hook
@@ -559,12 +807,13 @@ _fah_unload() {
     
     # Remove functions
     unfunction fah-on fah-off fah-toggle fah-status fah-watch fah-test fah-init 2>/dev/null
-    unfunction _fah_precmd _fah_preexec _fah_play_sound 2>/dev/null
-    unfunction _fah_detect_player _fah_detect_sound_file 2>/dev/null
-    unfunction _fah_should_play _fah_play_fallback_beep _fah_command_in_watchlist 2>/dev/null
+    unfunction _fah_precmd _fah_preexec _fah_play_sound _fah_play_success_sound 2>/dev/null
+    unfunction _fah_detect_player _fah_detect_sound_file _fah_detect_success_sound_file 2>/dev/null
+    unfunction _fah_should_play _fah_play_fallback_beep _fah_play_fallback_success_beep _fah_command_in_watchlist 2>/dev/null
     unfunction _fah_unload 2>/dev/null
-    
+
     # Unset variables
     unset _FAH_PLUGIN_DIR _FAH_COMMAND_EXECUTED _FAH_LAST_PLAY_TIME _FAH_PLAYER _FAH_LAST_COMMAND
     unset FAH_ENABLED FAH_SOUND_FILE FAH_MIN_INTERVAL_MS FAH_VOLUME FAH_WATCH_COMMANDS
+    unset FAH_SUCCESS_ENABLED FAH_SUCCESS_SOUND_FILE
 }
