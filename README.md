@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/fah-icon.png" alt="FAH ZSH Plugin icon" width="128" height="128">
+</p>
+
 # FAHHHHHHHH 🔊
 
 ```
@@ -41,6 +45,11 @@ Perfect for:
 - ✅ **Configurable**: Volume, sound files, enable/disable per sound type
 - ✅ **Safe**: Won't break shell startup even if audio tools are missing
 - ✅ **Multiple fallbacks**: Custom sound → System sounds → Terminal beep
+
+## Brand asset
+
+The project icon is versioned at [`assets/fah-icon.png`](assets/fah-icon.png)
+for README, release, and portfolio use.
 
 ---
 

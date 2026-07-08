@@ -1,6 +1,7 @@
 # Ignore generated sound files (users should generate their own)
 assets/*
 !assets/.gitkeep
+!assets/fah-icon.png
 
 # OS files
 .DS_Store
