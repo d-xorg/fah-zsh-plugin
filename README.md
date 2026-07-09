@@ -1,8 +1,12 @@
-<p align="center">
-  <img src="assets/fah-icon.png" alt="FAH ZSH Plugin icon" width="128" height="128">
-</p>
 
-# FAHHHHHHHH 🔊
+# <img src="assets/fah-icon.png" alt="FAH ZSH Plugin icon" width="30" height="30"> FAHHHHHHHH
+
+> 🎌 **The meme "FAHHHHH" now in your terminal!**<br>
+> When your commands fail, you'll know it. Instantly. Audibly. Memorably.<br>
+> When they succeed, now you'll know that too. 🎉
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue.svg)](https://github.com/d-xorg/fah-zsh-plugin)
 
 ```
     ______      __    __    __    __    __    __    __  
@@ -13,13 +17,6 @@
               
 🔊  F A I L U R E   A U D I O   H A N D L E R  🔊                      
 ```
-
-> 🎌 **The meme "FAHHHHH" now in your terminal!**  
-> When your commands fail, you'll know it. Instantly. Audibly. Memorably.  
-> When they succeed, now you'll know that too. 🎉
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue.svg)](https://github.com/d-xorg/fah-zsh-plugin)
 
 ---
 
