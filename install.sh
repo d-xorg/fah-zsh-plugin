@@ -1,6 +1,6 @@
 #!/bin/bash
 # install.sh - Interactive installer for fah-zsh-plugin
-# Author: d-xorg
+# Author: romajs
 # Description: Setup script for the fah (Failure Audio Handler) ZSH plugin
 
 set -e  # Exit on error
@@ -278,7 +278,7 @@ show_help() {
     echo -e "  fails, you'll hear the configured sound."
     echo ""
     echo -e "${BOLD}Repository:${RESET}"
-    echo -e "  https://github.com/d-xorg/fah-zsh-plugin"
+    echo -e "  https://github.com/romajs/fah-zsh-plugin"
     echo ""
 }
 

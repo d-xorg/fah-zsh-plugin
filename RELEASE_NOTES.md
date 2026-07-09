@@ -169,7 +169,7 @@ We're excited to announce the first release of **FAH** (Failure Audio Handler) -
 
 ```bash
 # Clone the plugin
-git clone https://github.com/d-xorg/fah-zsh-plugin ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fah
+git clone https://github.com/romajs/fah-zsh-plugin ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fah
 
 # Add to your .zshrc plugins list
 plugins=(... fah)

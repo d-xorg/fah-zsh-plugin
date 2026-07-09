@@ -6,7 +6,7 @@
 > When they succeed, now you'll know that too. 🎉
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue.svg)](https://github.com/d-xorg/fah-zsh-plugin)
+[![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue.svg)](https://github.com/romajs/fah-zsh-plugin)
 
 ```
     ______      __    __    __    __    __    __    __  
@@ -57,7 +57,7 @@ for README, release, and portfolio use.
 1. **Clone the plugin:**
 
 ```bash
-git clone https://github.com/d-xorg/fah-zsh-plugin ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fah
+git clone https://github.com/romajs/fah-zsh-plugin ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fah
 ```
 
 2. **Add to your plugins** in `~/.zshrc`:

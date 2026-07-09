@@ -4,7 +4,7 @@
 # ==============================================================================
 # Description: Play a sound when the previous command exits with non-zero status
 # License: MIT
-# Repository: https://github.com/d-xorg/fah-zsh-plugin
+# Repository: https://github.com/romajs/fah-zsh-plugin
 # ==============================================================================
 
 # Only load in interactive shells to avoid breaking scripts
